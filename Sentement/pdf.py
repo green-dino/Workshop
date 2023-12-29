@@ -4,8 +4,11 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.sentiment import SentimentIntensityAnalyzer
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 from nltk import FreqDist
 from nltk.corpus import stopwords
+import heapq
 
 # Define the TextAnalyzer class
 class TextAnalyzer:
@@ -40,32 +43,80 @@ def extract_keywords(text, num_keywords=5):
     return keywords
 
 # Define the function for metrics calculation and visualization
-def calculate_and_visualize_metrics(text):
-    words = word_tokenize(text)
-    word_count = len(words)
+def calculate_and_visualize_metrics(text, metric_filter):
+    if metric_filter == "Word Count":
+        words = word_tokenize(text)
+        count = len(words)
+        st.write(f"{metric_filter}: {count}")
 
-    sentences = sent_tokenize(text)
-    sentence_lengths = [len(word_tokenize(sentence)) for sentence in sentences]
+    elif metric_filter == "Sentence Length":
+        sentences = sent_tokenize(text)
+        sentence_lengths = [len(word_tokenize(sentence)) for sentence in sentences]
+        st.bar_chart(sentence_lengths)
+        st.write(f"{metric_filter} Distribution")
 
+    elif metric_filter == "Paragraph Length":
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        paragraph_lengths = [len(word_tokenize(paragraph)) for paragraph in paragraphs]
+        st.bar_chart(paragraph_lengths)
+        st.write(f"{metric_filter} Distribution")
+
+# Define the function to analyze paragraph structure and display heatmap
+def analyze_paragraph_structure(paragraph):
+    sentences = sent_tokenize(paragraph)
+    tokenized_sentences = [word_tokenize(sentence) for sentence in sentences]
+
+    relationships = []
+    for i, sentence_tokens in enumerate(tokenized_sentences):
+        if i < len(tokenized_sentences) - 1:
+            relationships.append((sentence_tokens[-1], tokenized_sentences[i + 1][0]))
+
+    if relationships:
+        df = pd.DataFrame(relationships, columns=['Current Word', 'Next Word'])
+        plt.figure(figsize=(8, 6))
+        heatmap = sns.heatmap(pd.crosstab(df['Current Word'], df['Next Word']), cmap="YlGnBu", annot=True, fmt='g')
+        plt.title('Relationships Between Tokens')
+        st.pyplot(heatmap.figure)
+
+# Define the function to get themes from paragraphs
+def get_themes(text):
     paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-    paragraph_lengths = [len(word_tokenize(paragraph)) for paragraph in paragraphs]
 
-    # Plotting
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10))
+    themes = []
+    for paragraph in paragraphs:
+        words = [word.lower() for word in word_tokenize(paragraph) if word.isalnum()]
+        stop_words = set(stopwords.words("english"))
+        words = [word for word in words if word not in stop_words]
 
-    ax1.bar(["Word Count"], [word_count], color='blue')
-    ax1.set_ylabel("Count")
+        freq_dist = FreqDist(words)
 
-    ax2.hist(sentence_lengths, bins=20, color='green', edgecolor='black')
-    ax2.set_xlabel("Sentence Length")
-    ax2.set_ylabel("Frequency")
+        if freq_dist:
+            main_idea = max(freq_dist, key=freq_dist.get)
+            themes.append(main_idea)
 
-    ax3.hist(paragraph_lengths, bins=20, color='orange', edgecolor='black')
-    ax3.set_xlabel("Paragraph Length")
-    ax3.set_ylabel("Frequency")
+    return themes
 
-    plt.tight_layout()
-    st.pyplot(fig)
+# Define the function for sentence summarization
+def sentence_summarization(text, num_sentences=5):
+    sentences = sent_tokenize(text)
+
+    stop_words = set(stopwords.words("english"))
+    words = [word.lower() for word in sentences if word.lower() not in stop_words]
+
+    word_freq = FreqDist(words)
+
+    sentence_scores = {}
+    for sentence in sentences:
+        for word, freq in word_freq.items():
+            if word in sentence.lower():
+                if sentence not in sentence_scores:
+                    sentence_scores[sentence] = freq
+                else:
+                    sentence_scores[sentence] += freq
+
+    summary_sentences = heapq.nlargest(num_sentences, sentence_scores, key=sentence_scores.get)
+
+    return summary_sentences
 
 # Streamlit app
 def main():
@@ -82,8 +133,10 @@ def main():
 
         interactive_sentiment_analysis(analyzer, st.text_area("Enter text for sentiment analysis:", value=""))
 
-        st.subheader("Metrics:")
-        calculate_and_visualize_metrics(pdf_text)
+        metric_filter = st.selectbox("Choose Metric", ["Word Count", "Sentence Length", "Paragraph Length"])
+
+        st.subheader(f"{metric_filter} Metrics:")
+        calculate_and_visualize_metrics(pdf_text, metric_filter)
 
         st.subheader("Keywords:")
         keywords = extract_keywords(pdf_text)
@@ -91,6 +144,20 @@ def main():
 
         st.subheader("Word Cloud:")
         generate_word_cloud(pdf_text)
+
+        st.subheader("Sentence Analysis:")
+        analysis_choice = st.radio("Choose Analysis", ["Themes", "Summarization"])
+        
+        if analysis_choice == "Themes":
+            themes = get_themes(pdf_text)
+            st.write("Themes:", themes)
+
+        elif analysis_choice == "Summarization":
+            num_summary_sentences = st.slider("Number of Sentences for Summarization", 1, 10, 5)
+            summary_sentences = sentence_summarization(pdf_text, num_summary_sentences)
+            st.write("Summary Sentences:")
+            for sentence in summary_sentences:
+                st.write("- ", sentence)
 
 if __name__ == "__main__":
     main()
