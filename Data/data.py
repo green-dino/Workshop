@@ -12,6 +12,9 @@ def display_headers():
     st.subheader("This is a Subheader")
     st.caption("Streamlit Supports LaTeX")
 
+
+
+
 # Sidebar
 def display_sidebar():
     with st.sidebar:
@@ -54,7 +57,7 @@ def display_sidebar():
 # New Features
 def display_new_features():
     email_address = st.text_input('Email address')
-    traveling_date = st.date_input('Travelling date')
+    traveling_date = st.date_input('Traveling date')
     school_time = st.time_input('School time')
     description = st.text_area('Description')
     uploaded_file = st.file_uploader('Upload a photo')
