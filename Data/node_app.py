@@ -25,7 +25,7 @@ def display_network_graph(nodes, edges):
 
 # Main Streamlit app
 def main():
-    st.title("Pyvis Network Tool")
+    st.title("Learning Nodes and Edges")
 
     # Sidebar for user input
     st.sidebar.header("Graph Configuration")
